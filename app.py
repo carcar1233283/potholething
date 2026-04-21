@@ -70,7 +70,10 @@ if model:
             video_path = "temp_video.mp4"
             with open(video_path, "wb") as f:
                 f.write(uploaded_video.getbuffer())
-            results = model.track(source=video_path, show=False, save=True, tracker="bytetrack.yaml")
+            # Use stream=True and a loop to prevent Out-Of-Memory errors on long videos
+            for _ in model.track(source=video_path, show=False, save=True, tracker="bytetrack.yaml", stream=True):
+                pass
+                
             st.success("Video tracking complete! Output saved to /content/runs/detect/track/ folder in Colab.")
             os.remove(video_path)
 
