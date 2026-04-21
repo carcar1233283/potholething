@@ -12,10 +12,10 @@ st.title("Pothole Detection and Tracking App")
 # --- Model Loading ---
 @st.cache_resource
 def load_yolo_model():
-    # Use absolute path to ensure Streamlit finds it
-    weights_paths = ['best.pt']
+    # Try to find the weights locally or in Colab path
+    weights_paths = glob.glob('best.pt') + glob.glob('runs/detect/train*/weights/best.pt') + glob.glob('/content/runs/detect/train*/weights/best.pt')
     if not weights_paths:
-        st.error("No YOLO model weights found at /content/runs/detect. Please train the model first.")
+        st.error("No YOLO model weights found. Please train the model first or place 'best.pt' in the directory.")
         return None
 
     # Get the most recently created weights file
@@ -45,7 +45,7 @@ if model:
 
             if results and results[0]: # Ensure results arent empty
                 # Find the latest predict directory
-                predict_results_dirs = glob.glob('/content/runs/detect/predict*')
+                predict_results_dirs = glob.glob('runs/detect/predict*') + glob.glob('/content/runs/detect/predict*')
                 if predict_results_dirs:
                     latest_predict_dir = max(predict_results_dirs, key=os.path.getctime)
                     predicted_image_name = os.path.basename(temp_image_path)
@@ -70,11 +70,33 @@ if model:
             video_path = "temp_video.mp4"
             with open(video_path, "wb") as f:
                 f.write(uploaded_video.getbuffer())
+            
             # Use stream=True and a loop to prevent Out-Of-Memory errors on long videos
             for _ in model.track(source=video_path, show=False, save=True, tracker="bytetrack.yaml", stream=True):
                 pass
                 
-            st.success("Video tracking complete! Output saved to /content/runs/detect/track/ folder in Colab.")
+            st.success("Video tracking complete!")
+            
+            # Locate the saved video to offer a download button
+            track_dirs = glob.glob('runs/detect/track*') + glob.glob('/content/runs/detect/track*')
+            if track_dirs:
+                latest_track_dir = max(track_dirs, key=os.path.getctime)
+                output_videos = glob.glob(os.path.join(latest_track_dir, "temp_video.*"))
+                if output_videos:
+                    output_video_path = output_videos[0]
+                    with open(output_video_path, "rb") as file:
+                        video_bytes = file.read()
+                    st.download_button(
+                        label="Download Tracked Video",
+                        data=video_bytes,
+                        file_name=f"tracked_{os.path.basename(output_video_path)}",
+                        mime="video/mp4"
+                    )
+                else:
+                    st.warning("Could not find the tracked video file to download.")
+            else:
+                st.warning("Could not locate the tracking output directory.")
+                
             os.remove(video_path)
 
     with tab3:
